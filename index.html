@@ -177,6 +177,12 @@ NEWFILEUID:NONE
 
           const csvContent = fileReader.result;
 
+          try {
+            parseCsv(csvContent);
+          } catch(e) {
+            alert('Ops! You uploaded an invalid CSV file. Try again with a valid one.');
+          }
+
           const parsedCsvContent = parseCsv(csvContent);
 
           fixInstallmentDates(parsedCsvContent);
@@ -200,6 +206,7 @@ NEWFILEUID:NONE
 
     function toggleLoader(show) {
       document.getElementById('loader').style.display = show ? 'inline' : 'none';
+      document.querySelector('a.download-ofx').style.display = show ? 'none' : 'inline';
     }
 
     function fillCsvFileName() {
