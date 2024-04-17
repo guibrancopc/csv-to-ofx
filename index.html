@@ -1,0 +1,198 @@
+<html>
+<head>
+  <title>CSV to OFX</title>
+</head>
+<body>
+  <h1>Convert CSV to OFX</h1>
+
+  <form>
+    <input type="file" name="input_file" id="input_file" accept=".csv">
+  </form>
+
+  <script>
+    // TODO
+    // 1. Add Installments on description - OK
+    // 2. Edit date of installments - forward the month
+    // 3. Get the date interval 
+    // 4. Export the OFX file
+
+
+    const formFile = document.querySelector('#input_file');
+    formFile.addEventListener('change', getFileData, false);
+
+    function getFileData() {
+      if (!window.File || !window.FileReader || !window.FileList || !window.Blob) {
+        console.log('The File APIs are not fully supported in this browser.');
+        return;
+      }
+
+      if (!formFile.files) {
+        console.log("This browser doesn't seem to support the `files` property of file inputs.");
+      } else if (!formFile.files[0]) {
+        console.log("No file selected.");
+      } else {
+        const file = formFile.files[0];
+        const fr = new FileReader();
+        fr.onload = receivedText;
+        fr.readAsText(file);
+
+        function receivedText() {
+          const csvContent = fr.result;
+
+          const parsedCsvContent = parseCsv(csvContent);
+          const fixedDates = fixInstallmentDates(parsedCsvContent);
+          
+          console.log('parsedCsvContent', parsedCsvContent);
+
+
+          const result = parsedCsvContent.reduce((acc, transaction) => {
+            return `${acc}\n${buildOfxTransaction(transaction)}`;
+          }, header)
+
+          console.log(result);
+
+
+        }
+      }
+    }
+
+    function parseCsv(content) {
+      /*
+      * Data
+      * Estabelecimento
+      * Parcela
+      * Valor
+      * Valor em Dólar
+      * Adicional
+      **/      
+
+      return content
+        .split('Adicional ";\r\n')[1]
+        .split('\n')
+        .map(transaction => {
+          return transaction
+                          .replaceAll('\"', '')
+                          .replaceAll(';  ;', ';;')
+                          .split(';')
+        });
+    }
+
+    function buildOfxTransaction([date, description, installments, value, dolarValue, card]) {
+      if (!date || !value || !description) return '';
+
+      const parsedValue = parseCurrencyValue(value);
+      const parsedDate = formatDate(date);
+      const descriptionWithInstallments = `${description} ${installments.replaceAll(' ', '')}`
+
+      return `<STMTTRN>
+<TRNTYPE>${parsedValue.includes('-') ? 'DEBIT' : 'CREDIT'}
+<DTPOSTED>${formatDate(date)}[-3:GMT]
+<TRNAMT>${parsedValue}
+<FITID>${generateTransactionId(parsedDate, parsedValue, descriptionWithInstallments)}
+<MEMO>R${descriptionWithInstallments}
+</STMTTRN>`;
+    }
+
+    const header = `OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+<OFX>
+<SIGNONMSGSRSV1>
+<SONRS>
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+</STATUS>
+
+<DTSERVER>${getCurrentDate()}[-3:GMT]
+<LANGUAGE>POR
+</SONRS>
+</SIGNONMSGSRSV1>
+
+<CREDITCARDMSGSRSV1>
+<CCSTMTTRNRS>
+<TRNUID>1001
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+</STATUS>
+
+<CCSTMTRS>
+<CURDEF>BRL
+<CCACCTFROM>
+<ACCTID>58f6688a-ffda-449e-a547-1e819c9daffa
+</CCACCTFROM>
+
+<BANKTRANLIST>
+<DTSTART>20240301000000[-3:GMT]
+<DTEND>20240401000000[-3:GMT]`;
+
+  // HELPERS
+
+  function fixInstallmentDates(data) {
+      data.reduce((acc, transaction) => {
+        const [date, description, installments] = transaction;
+
+        if (!date.includes('/') || !installments.includes('/')) {
+          return acc;
+        }
+
+        transaction[0] = forwardDateBasedOnInstallments(date, installments);
+
+        return [ ...acc, transaction];
+      }, [])
+    }
+
+    function forwardDateBasedOnInstallments(date, installments) {
+      const installment = +installments.replaceAll(' ', '').split('/')[0];
+
+      const [day, month, year] = date.replaceAll(' ', '').split('/').map(v => +v);
+
+      const monthAndInstallment = month + installment - 1;
+      const newMonth = monthAndInstallment > 12 ? monthAndInstallment % 12 : monthAndInstallment;
+      const newYear = monthAndInstallment > 12 ? year + Math.floor(monthAndInstallment / 12) : year;
+
+      return `${pad(day)}/${pad(newMonth)}/${newYear}`;
+    }
+
+
+    function getCurrentDate() {
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}000000`;
+    }
+
+    function pad(n) {
+      return n < 10 ? `0${n}` : n;
+    }
+
+    function formatDate(d) {
+      const arr = d.split('/');
+      return `${arr[2]}${arr[1]}${arr[0]}000000`
+    }
+
+    function parseCurrencyValue(v) {
+       if (!v) return '';
+
+      const parsedValue = v
+      .replaceAll(' ', '')
+      .replace('R$', '')
+      .replace('.', '')
+      .replace(',', '.')
+      
+      return parsedValue.includes('-') ? parsedValue.replace('-', '') : `-${parsedValue}`;
+    }
+
+    function generateTransactionId(date, value, description) {
+      const keyFromDescription = description?.match(/([0-z])\w+/g)?.join('');
+      return `${date}-${value}-${keyFromDescription}`
+    }
+
+  </script>
+</body>
+</html>
