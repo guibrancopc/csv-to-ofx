@@ -1,14 +1,60 @@
 <html>
 <head>
   <title>CSV to OFX</title>
+  <style>
+    body {
+      font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+    }
+    .container {
+      text-align: center;
+      padding: 100px;
+    }
+    .input-file-label {
+      background-color: #3C74FF55;
+      border: solid 1px #3C74FF33;
+      padding: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: inline-block;
+    }
+    .display-none {
+      display: none;
+    }
+    .download-ofx {
+      cursor: pointer;
+      display: none;
+    }
+    .loader {
+      width: 60px;
+    }
+    #csv-file-name {
+      padding: 32px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Convert CSV to OFX</h1>
+  <div class="container">
+    <h1>Convert CSV to OFX</h1>
+    
+    <br>
+    <br>
 
-  <form>
-    <input type="file" name="input_file" id="input_file" accept=".csv">
-  </form>
+    <form>
+      <label for="input-file" class="input-file-label">
+        Upload your CSV
+      </label>
+      <input type="file" name="input-file" id="input-file" class="display-none" accept=".csv">
+      <div id="csv-file-name" class="display-none"></div>
+    </form>
 
+    <br>
+
+    <a class="download-ofx">Download OFX</a>
+
+    <svg class="loader display-none" id="loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><path fill="#3C74FF" stroke="#3C74FF" stroke-width="30" transform-origin="center" d="m148 84.7 13.8-8-10-17.3-13.8 8a50 50 0 0 0-27.4-15.9v-16h-20v16A50 50 0 0 0 63 67.4l-13.8-8-10 17.3 13.8 8a50 50 0 0 0 0 31.7l-13.8 8 10 17.3 13.8-8a50 50 0 0 0 27.5 15.9v16h20v-16a50 50 0 0 0 27.4-15.9l13.8 8 10-17.3-13.8-8a50 50 0 0 0 0-31.7Zm-47.5 50.8a35 35 0 1 1 0-70 35 35 0 0 1 0 70Z"><animateTransform type="rotate" attributeName="transform" calcMode="spline" dur="0.7" values="0;120" keyTimes="0;1" keySplines="0 0 1 1" repeatCount="indefinite"></animateTransform></path></svg>
+
+    <!-- <svg class="loader display-none" id="loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><circle fill="#3C74FF" stroke="#3C74FF" stroke-width="30" r="15" cx="40" cy="65"><animate attributeName="cy" calcMode="spline" dur="1.2" values="65;135;65;" keySplines=".5 0 .5 1;.5 0 .5 1" repeatCount="indefinite" begin="-.4"></animate></circle><circle fill="#3C74FF" stroke="#3C74FF" stroke-width="30" r="15" cx="100" cy="65"><animate attributeName="cy" calcMode="spline" dur="1.2" values="65;135;65;" keySplines=".5 0 .5 1;.5 0 .5 1" repeatCount="indefinite" begin="-.2"></animate></circle><circle fill="#3C74FF" stroke="#3C74FF" stroke-width="30" r="15" cx="160" cy="65"><animate attributeName="cy" calcMode="spline" dur="1.2" values="65;135;65;" keySplines=".5 0 .5 1;.5 0 .5 1" repeatCount="indefinite" begin="0"></animate></circle></svg> -->
+  </div>
   <script>
     // TODO
     // 1. Add Installments on description - OK
@@ -17,7 +63,7 @@
     // 4. Export the OFX file
 
 
-    const formFile = document.querySelector('#input_file');
+    const formFile = document.querySelector('#input-file');
     formFile.addEventListener('change', getFileData, false);
 
     function getFileData() {
@@ -32,29 +78,71 @@
         console.log("No file selected.");
       } else {
         const file = formFile.files[0];
-        const fr = new FileReader();
-        fr.onload = receivedText;
-        fr.readAsText(file);
+        const fileReader = new FileReader();
+        fileReader.onload = receivedText;
+        fileReader.readAsText(file);
 
         function receivedText() {
-          const csvContent = fr.result;
+          fillCsvFileName();
+
+          const csvContent = fileReader.result;
 
           const parsedCsvContent = parseCsv(csvContent);
+
           fixInstallmentDates(parsedCsvContent);
-          
-          // console.log('parsedCsvContent', parsedCsvContent);
 
           const { startDate, endDate } = getDateInterval(parsedCsvContent.map(v => v[0]))
 
-          const result = parsedCsvContent.reduce((acc, transaction) => {
-            return `${acc}\n${buildOfxTransaction(transaction)}`;
-          }, buildOfxHeader(startDate, endDate))
+          const ofxRawData = buildOfxRawData(parsedCsvContent, startDate, endDate);
 
-          console.log(result);
+          const ofxFileData = buildOfxFileData(ofxRawData);
+          const fileName = buildFileName(startDate, endDate);
 
+          toggleLoader(true);
 
+          setTimeout(() => {
+            toggleLoader(false);
+            setDownloadButton(fileName, ofxFileData)
+          }, 1000)
         }
       }
+    }
+
+    function toggleLoader(show) {
+      document.getElementById('loader').style.display = show ? 'inline' : 'none';
+    }
+
+    function fillCsvFileName() {
+      const inputEl = document.getElementById('input-file');
+      const fileNameArray = inputEl.value?.split('\\');
+      const fileName = fileNameArray[fileNameArray.length - 1];
+      const fileNameEl = document.getElementById('csv-file-name')
+
+      fileNameEl.innerHTML = `<strong>Selected CSV File: </strong>${fileName}`;
+      fileNameEl.style.display = 'block';
+    }
+
+    function buildOfxRawData(parsedCsvContent, startDate, endDate) {
+      return parsedCsvContent.reduce((acc, transaction) => {
+        return `${acc}\n${buildOfxTransaction(transaction)}`;
+      }, buildOfxHeader(startDate, endDate))
+    }
+
+    function setDownloadButton(fileName, fileData) {
+      const el = document.querySelector('a.download-ofx');
+
+      el.setAttribute('download', fileName);
+      el.setAttribute('href', fileData);
+      el.style.display = 'inline-block';
+    }
+
+    function buildFileName(startDate, endDate) {
+      return `transactions_${startDate.replaceAll('/', '-')}_to_${endDate.replaceAll('/', '-')}.ofx`
+    }
+
+    function buildOfxFileData(data) {
+      const fixedData =  data.replaceAll('\n', '\r\n')
+      return encodeURI(`data:text/ofx;charset=utf-8,${fixedData}`);
     }
 
     function parseCsv(content) {
@@ -130,7 +218,7 @@ NEWFILEUID:NONE
 <CCSTMTRS>
 <CURDEF>BRL
 <CCACCTFROM>
-<ACCTID>58f6688a-ffda-449e-a547-1e819c9daffa
+<ACCTID>79f6b28a-ffda-117e-a547-1e83255ad8f4
 </CCACCTFROM>
 
 <BANKTRANLIST>
