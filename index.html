@@ -49,14 +49,14 @@
     <div class="git-hub-link">
       <a target="_blank" href="https://github.com/guibrancopc/csv-to-ofx?tab=readme-ov-file">GitHub</a>
     </div>
-    <h1>Convert CSV to OFX</h1>
+    <h1>Convert TSV to OFX</h1>
     <br>
     <br>
     <form>
       <label for="input-file" class="input-file-label">
-        Upload your CSV
+        Upload your TSV file
       </label>
-      <input type="file" name="input-file" id="input-file" class="display-none" accept=".csv">
+      <input type="file" name="input-file" id="input-file" class="display-none" accept=".tsv">
       <div id="csv-file-name" class="display-none"></div>
     </form>
     <br>
@@ -66,24 +66,67 @@
   <script>
     // CSV PARSER
 
-    function parseCsv(content) {
+    // function parseCsvSemiColon(content) {
+    //   /*
+    //   * Date
+    //   * Description
+    //   * Installments
+    //   * Real Currency Value
+    //   * Dolar Currency Value
+    //   * Credit card last digits
+    //   **/
+
+    //   return content
+    //     .split('Adicional ";\r\n')[1]
+    //     .split('\n')
+    //     .map(transaction => {
+    //       return transaction
+    //                       .replaceAll('\"', '')
+    //                       .replaceAll(';  ;', ';;')
+    //                       .split(';')
+    //     });
+    // }
+
+    // function parseCsvComma(content) {
+    //   /*
+    //   * Date
+    //   * Description
+    //   * Installments
+    //   * Real Currency Value
+    //   **/
+
+    //   return content
+    //     .split('Data,Descrição,Parcela,Valor (R$)\r\n')[1]
+    //     .split('\n')
+    //     .map(transaction => {
+    //       return transaction
+    //                       .replaceAll('\"', '')
+    //                       .replaceAll('\r', '')
+    //                       .replaceAll(', ,', ',,')
+    //                       .split(',')
+    //     });
+    // }
+
+    function parseTsv(content) {
       /*
       * Date
       * Description
       * Installments
       * Real Currency Value
-      * Dolar Currency Value
-      * Credit card last digits
-      **/      
+      **/
 
       return content
-        .split('Adicional ";\r\n')[1]
+        .split('Data	Descrição	Parcela	Valor (R$)\r\n')[1]
+        .split('\r\nValor Total')[0]
         .split('\n')
         .map(transaction => {
           return transaction
                           .replaceAll('\"', '')
-                          .replaceAll(';  ;', ';;')
-                          .split(';')
+                          .replaceAll('	 ', '	')
+                          .replaceAll(' 	', '	')
+                          .replaceAll('\r', '')
+                          .replaceAll('	 	', '		')
+                          .split('	')
         });
     }
 
@@ -191,12 +234,12 @@ NEWFILEUID:NONE
           const csvContent = fileReader.result;
 
           try {
-            parseCsv(csvContent);
+            parseTsv(csvContent);
           } catch(e) {
             alert('Ops! You uploaded an invalid CSV file. Try again with a valid one.');
           }
 
-          const parsedCsvContent = parseCsv(csvContent);
+          const parsedCsvContent = parseTsv(csvContent);
 
           fixInstallmentDates(parsedCsvContent);
 
@@ -228,7 +271,7 @@ NEWFILEUID:NONE
       const fileName = fileNameArray[fileNameArray.length - 1];
       const fileNameEl = document.getElementById('csv-file-name')
 
-      fileNameEl.innerHTML = `<strong>Selected CSV File: </strong>${fileName}`;
+      fileNameEl.innerHTML = `<strong>Selected TSV File: </strong>${fileName}`;
       fileNameEl.style.display = 'block';
     }
 
