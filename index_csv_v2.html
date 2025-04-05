@@ -196,7 +196,8 @@
       }
 
       function buildOfxFileData(data) {
-        const fixedData = data.replaceAll("\n", "\r\n");
+        const fixedData = data.replaceAll("\n", "\r\n").replaceAll("#", "_");
+
         return encodeURI(`data:text/ofx;charset=utf-8,${fixedData}`);
       }
 
